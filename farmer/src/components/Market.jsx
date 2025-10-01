@@ -11,27 +11,41 @@ function CropMarket() {
   const [totalRevenue, setTotalRevenue] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // ✅ Your API Key and Resource
   const apiKey = "579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b";
   const resourceId = "9ef84268-d588-465a-a308-a864a43d0070";
 
-  const CORS_PROXY = "https://api.allorigins.win/get?url="; // free CORS proxy
+  // ✅ Use CORS proxy only when needed
+  const CORS_PROXY = "https://api.allorigins.win/get?url=";
 
-  // Helper to fetch data from Data.gov.in
+  // Helper function for API fetch
   const fetchData = async (paramsObj) => {
-    const params = new URLSearchParams({
-      "api-key": apiKey,
-      format: "json",
-      limit: 100,
-      ...paramsObj,
-    });
+    try {
+      const params = new URLSearchParams({
+        "api-key": apiKey,
+        format: "json",
+        limit: 100,
+        ...paramsObj,
+      });
 
-    const targetUrl = encodeURIComponent(`https://api.data.gov.in/resource/${resourceId}?${params.toString()}`);
-    const res = await fetch(`${CORS_PROXY}${targetUrl}`);
-    const data = await res.json();
+      const targetUrl = `https://api.data.gov.in/resource/${resourceId}?${params.toString()}`;
+      const encodedUrl = encodeURIComponent(targetUrl);
 
-    if (!data || !data.contents) return [];
-    const parsed = JSON.parse(data.contents);
-    return parsed.records || [];
+      // Try with proxy first
+      const res = await fetch(`${CORS_PROXY}${encodedUrl}`);
+      const data = await res.json();
+
+      if (!data || !data.contents) {
+        console.warn("⚠️ Empty response, returning []");
+        return [];
+      }
+
+      const parsed = JSON.parse(data.contents);
+      return parsed.records || [];
+    } catch (err) {
+      console.error("❌ API Fetch Failed:", err);
+      return []; // prevent crash
+    }
   };
 
   // Fetch states for selected crop
@@ -44,17 +58,11 @@ function CropMarket() {
     setStates([]);
     if (!crop) return;
 
-    try {
-      setLoading(true);
-      const records = await fetchData({ "filters[commodity]": crop });
-      const uniqueStates = [...new Set(records.map((r) => r.state))];
-      setStates(uniqueStates);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to fetch states.");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    const records = await fetchData({ "filters[commodity]": crop });
+    const uniqueStates = [...new Set(records.map((r) => r.state))];
+    setStates(uniqueStates);
+    setLoading(false);
   };
 
   // Fetch markets for selected crop + state
@@ -65,20 +73,14 @@ function CropMarket() {
     setTotalRevenue(null);
     if (!crop || !stateName) return;
 
-    try {
-      setLoading(true);
-      const records = await fetchData({
-        "filters[commodity]": crop,
-        "filters[state]": stateName,
-      });
-      const uniqueMarkets = [...new Set(records.map((r) => `${r.market} (${r.arrivals_in_qtl} qtl)`))];
-      setMarkets(uniqueMarkets);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to fetch markets.");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    const records = await fetchData({
+      "filters[commodity]": crop,
+      "filters[state]": stateName,
+    });
+    const uniqueMarkets = [...new Set(records.map((r) => `${r.market} (${r.arrivals_in_qtl} qtl)`))];
+    setMarkets(uniqueMarkets);
+    setLoading(false);
   };
 
   // Fetch prices for selected crop + state + market
@@ -88,31 +90,26 @@ function CropMarket() {
       return;
     }
 
-    try {
-      setLoading(true);
-      const marketName = market.split(" (")[0]; // remove "(xx qtl)"
-      const records = await fetchData({
-        "filters[commodity]": commodity,
-        "filters[state]": state,
-        "filters[market]": marketName,
-      });
+    setLoading(true);
+    const marketName = market.split(" (")[0]; // remove "(xx qtl)"
+    const records = await fetchData({
+      "filters[commodity]": commodity,
+      "filters[state]": state,
+      "filters[market]": marketName,
+    });
 
-      if (!records || records.length === 0) {
-        alert("No prices found!");
-        setPrices([]);
-        setTotalRevenue(null);
-        return;
-      }
-
-      setPrices(records);
-      const latestPrice = parseInt(records[0].modal_price);
-      setTotalRevenue(latestPrice * quantity);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to fetch prices.");
-    } finally {
+    if (!records || records.length === 0) {
+      alert("No prices found!");
+      setPrices([]);
+      setTotalRevenue(null);
       setLoading(false);
+      return;
     }
+
+    setPrices(records);
+    const latestPrice = parseInt(records[0].modal_price || 0);
+    setTotalRevenue(latestPrice * quantity);
+    setLoading(false);
   };
 
   return (
@@ -226,6 +223,7 @@ function CropMarket() {
         .field label { font-weight:600; display:block; margin-bottom:5px; }
         input, select { width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; }
         button { width:100%; padding:14px; background:linear-gradient(90deg,#2e7d32,#43a047); color:white; font-weight:bold; border:none; border-radius:8px; cursor:pointer; }
+        button:disabled { opacity:0.7; cursor:not-allowed; }
         table { width:100%; border-collapse:collapse; margin-top:20px; }
         th, td { padding:12px; border:1px solid #ddd; text-align:center; }
         th { background:#a5d6a7; }
