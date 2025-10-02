@@ -1,4 +1,4 @@
-import React, { useState} from "react";
+import React, { useState } from "react";
 
 function CropMarket() {
   const [commodity, setCommodity] = useState("");
@@ -11,31 +11,26 @@ function CropMarket() {
   const [totalRevenue, setTotalRevenue] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const apiKey =
-    "579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b";
-  const baseUrl =
-    "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070";
+  // 👉 Your backend URL
+  const backendUrl = "https://bhoomisetu-2.onrender.com";
 
-  // Step 1: When crop is selected → fetch states that have data for that crop
+  // Step 1: When crop is selected → fetch states
   const fetchStates = async (crop) => {
     setState("");
     setMarket("");
     setMarkets([]);
     setPrices([]);
     setTotalRevenue(null);
-
     if (!crop) return;
 
     try {
       setLoading(true);
-      const url = `${baseUrl}?api-key=${apiKey}&format=json&limit=100&filters[commodity]=${crop}`;
-      const res = await fetch(url);
+      const res = await fetch(
+        `https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?api-key=579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b&format=json&limit=100&filters[commodity]=${crop}`
+      );
       const data = await res.json();
-
       if (data.records) {
-        const uniqueStates = [
-          ...new Set(data.records.map((r) => r.state)),
-        ];
+        const uniqueStates = [...new Set(data.records.map((r) => r.state))];
         setStates(uniqueStates);
       }
     } catch (err) {
@@ -46,24 +41,25 @@ function CropMarket() {
     }
   };
 
-  // Step 2: When state is selected → fetch markets for that crop + state
+  // Step 2: When state is selected → fetch markets
   const fetchMarkets = async (crop, stateName) => {
     setMarket("");
     setMarkets([]);
     setPrices([]);
     setTotalRevenue(null);
-
     if (!crop || !stateName) return;
 
     try {
       setLoading(true);
-      const url = `${baseUrl}?api-key=${apiKey}&format=json&limit=100&filters[commodity]=${crop}&filters[state]=${stateName}`;
-      const res = await fetch(url);
+      const res = await fetch(
+        `https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?api-key=579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b&format=json&limit=100&filters[commodity]=${crop}&filters[state]=${stateName}`
+      );
       const data = await res.json();
-
       if (data.records) {
         const uniqueMarkets = [
-          ...new Set(data.records.map((r) => `${r.market} (${r.arrivals_in_qtl} qtl)`)),
+          ...new Set(
+            data.records.map((r) => `${r.market} (${r.arrivals_in_qtl} qtl)`)
+          ),
         ];
         setMarkets(uniqueMarkets);
       }
@@ -75,7 +71,7 @@ function CropMarket() {
     }
   };
 
-  // Step 3: Fetch prices for crop + state + market
+  // Step 3: Fetch prices from backend
   const fetchPrices = async () => {
     if (!commodity || !state || !market || !quantity) {
       alert("Please fill all fields!");
@@ -84,20 +80,20 @@ function CropMarket() {
 
     setLoading(true);
     try {
-      const marketName = market.split(" (")[0]; // remove "(xx qtl)" part
-      const url = `${baseUrl}?api-key=${apiKey}&format=json&limit=10&filters[commodity]=${commodity}&filters[state]=${state}&filters[market]=${marketName}`;
+      const marketName = market.split(" (")[0];
+      const url = `${backendUrl}/request?commodity=${commodity}&state=${state}&market=${marketName}`;
       const res = await fetch(url);
       const data = await res.json();
 
-      if (!data.records || data.records.length === 0) {
-        alert("No prices found!");
+      if (data.error) {
+        alert(data.error);
         setPrices([]);
         setTotalRevenue(null);
         return;
       }
 
-      setPrices(data.records);
-      const latestPrice = parseInt(data.records[0]["modal_price"]);
+      setPrices(data);
+      const latestPrice = parseInt(data[0]["Modal Price"]);
       setTotalRevenue(latestPrice * quantity);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -112,7 +108,6 @@ function CropMarket() {
       <h2>🌾 Smart Crop Market Price Lookup</h2>
 
       <div className="form-grid">
-        {/* Crop Dropdown */}
         <div className="field">
           <label>Crop:</label>
           <select
@@ -132,7 +127,6 @@ function CropMarket() {
           </select>
         </div>
 
-        {/* Quantity */}
         <div className="field">
           <label>Quantity (quintals):</label>
           <input
@@ -143,7 +137,6 @@ function CropMarket() {
           />
         </div>
 
-        {/* State Dropdown */}
         <div className="field">
           <label>State:</label>
           <select
@@ -163,7 +156,6 @@ function CropMarket() {
           </select>
         </div>
 
-        {/* Market Dropdown */}
         <div className="field">
           <label>Market:</label>
           <select
@@ -185,7 +177,6 @@ function CropMarket() {
         {loading ? "Fetching..." : "Get Prices"}
       </button>
 
-      {/* Price Table */}
       {prices.length > 0 && (
         <div className="table-container animate-fadeIn">
           <h3>
@@ -198,17 +189,19 @@ function CropMarket() {
                 <th>Min Price</th>
                 <th>Modal Price</th>
                 <th>Max Price</th>
-                <th>Arrivals (qtl)</th>
+                <th>Market</th>
+                <th>State</th>
               </tr>
             </thead>
             <tbody>
               {prices.map((p, index) => (
                 <tr key={index}>
-                  <td>{p.arrival_date}</td>
-                  <td>₹{p.min_price}</td>
-                  <td>₹{p.modal_price}</td>
-                  <td>₹{p.max_price}</td>
-                  <td>{p.arrivals_in_qtl}</td>
+                  <td>{p.Date}</td>
+                  <td>₹{p["Min Price"]}</td>
+                  <td>₹{p["Modal Price"]}</td>
+                  <td>₹{p["Max Price"]}</td>
+                  <td>{p.Market}</td>
+                  <td>{p.State}</td>
                 </tr>
               ))}
             </tbody>
@@ -222,7 +215,7 @@ function CropMarket() {
         </div>
       )}
 
-      {/* CSS */}
+      {/* 👉 CSS inside same file */}
       <style>{`
         body { background: linear-gradient(135deg, #e0f7fa, #f1f8e9); }
         .container {
